@@ -24,7 +24,7 @@ executable generate-elm
   hs-source-dirs:
     app
   build-depends:
-      base >=4.1 && <4.13
+      base >=4.12
     , text
     , backend
     , servant-elm
@@ -37,7 +37,7 @@ executable backend
   hs-source-dirs: app
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.12 && <4.13
+  build-depends:       base >=4.12
                      , backend
                      , servant
                      , servant-server
@@ -71,7 +71,7 @@ library
       , Logger
       , DevelMain
     build-depends:
-        base >=4.12 && <4.13
+        base >=4.12
       , aeson
       , bytestring
       , containers
