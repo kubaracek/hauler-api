@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric              #-}
+
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -13,22 +14,45 @@
 
 module Models where
 
-import           Control.Monad.Reader (MonadIO, MonadReader, asks, liftIO)
-import           Database.Persist.Sql (SqlPersistT, runMigration, runSqlPool)
-import           Database.Persist.TH  (mkMigrate, mkPersist, persistLowerCase,
-                                       share, sqlSettings)
+import Model.CustomTypes()
+import Data.UUID
+import Control.Monad.Reader (MonadIO, MonadReader, asks, liftIO)
+import Database.Persist.Sql (SqlPersistT, runMigration, runSqlPool, entityKey, fromSqlKey)
+import Database.Persist.TH  (mkMigrate, mkPersist, persistLowerCase,
+                              share, sqlSettings)
+import Elm.Derive   (defaultOptions, deriveElmDef)
 
-import           Config               (Config, configPool)
-import           Data.Text            (Text)
+import Config               (Config, configPool)
+import Data.Text            (Text)
+import Data.Aeson           (FromJSON, ToJSON)
+import GHC.Generics
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-User json
+DUser json
+    uuid UUID sqltype=uuid default=uuid_generate_v4()
     name Text
     email Text
+    password Text
     UniqueEmail email
     deriving Show Eq
 |]
 
+data User = User
+  { userUid :: Text
+  , userPassword :: Text
+  , userEmail :: Text
+  } deriving (Generic)
+
+duserToUser :: DUser -> User
+duserToUser duser =
+  User {
+    userUid = fromSqlKey . entityKey $ duser :: Text
+  }
+
+instance FromJSON User
+instance ToJSON User
+
+deriveElmDef defaultOptions ''User
 
 doMigrations :: SqlPersistT IO ()
 doMigrations = runMigration migrateAll

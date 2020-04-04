@@ -11,14 +11,19 @@ User-Agent: JakuBot/1.0
 GET :host/users
 #
 
+
+#
+GET :host/users/jakub
+#
+
 #Create User
 POST :host/users
 :headers
 {
   "name": "Jakub",
-  "email": "me2@jakubracek.net"
+  "email": "me3@jakubracek.net",
+  "password": "1"
 }
-#
 #
 
 #Metrics

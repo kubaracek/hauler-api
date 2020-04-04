@@ -9,9 +9,10 @@ import           Control.Monad.Except        (MonadIO, liftIO)
 import           Control.Monad.Logger        (logDebugNS)
 import qualified Control.Monad.Metrics       as Metrics
 import           Data.Int                    (Int64)
-import           Database.Persist.Postgresql (Entity (..), fromSqlKey, insert,
+import           Database.Persist.Postgresql (Entity (..), insertUnique,
                                               selectFirst, selectList, (==.))
 import           Servant
+import           Servant.JS                  (vanillaJS, writeJSForAPI)
 
 import           Config                      (AppT (..))
 import           Control.Monad.Metrics       (increment, metricsCounters)
@@ -20,14 +21,14 @@ import           Data.HashMap.Lazy           (HashMap)
 import           Data.Text                   (Text)
 import           Lens.Micro                  ((^.))
 import           Models                      (User (User), runDb, userEmail,
-                                              userName)
+                                              userPassword)
 import qualified Models                      as Md
 import qualified System.Metrics.Counter      as Counter
 
 type UserAPI =
-         "users" :> Get '[JSON] [Entity User]
-    :<|> "users" :> Capture "name" Text :> Get '[JSON] (Entity User)
-    :<|> "users" :> ReqBody '[JSON] User :> Post '[JSON] (Entity User)
+         "users" :> Get '[JSON] [User]
+    :<|> "users" :> Capture "name" Text :> Get '[JSON] (User)
+    :<|> "users" :> ReqBody '[JSON] User :> Post '[JSON] (User)
     :<|> "metrics" :> Get '[JSON] (HashMap Text Int64)
 
 userApi :: Proxy UserAPI
@@ -49,32 +50,34 @@ singleUser :: MonadIO m => Text -> AppT m (Entity User)
 singleUser str = do
     increment "singleUser"
     logDebugNS "web" "singleUser"
-    maybeUser <- runDb (selectFirst [Md.UserName ==. str] [])
+    maybeUser <- runDb (selectFirst [Md.DUserName ==. str] [])
     case maybeUser of
          Nothing ->
-            throwError err404
+            throwError err404 { errBody = "Eye" }
          Just person ->
             return person
 
--- | FIXME: Jakub is stupid because he doesn't know how to do that
--- | Remove me and handle somehow insert error in createUser
-idUser :: MonadIO m => Md.Key User -> AppT m (Maybe (Entity User))
-idUser uid = do
-    maybeUser <- runDb (selectFirst [Md.UserId ==. uid] [])
+userByUid :: MonadIO m => Md.Key User -> AppT m (Maybe (Entity User))
+userByUid uid = do
+    maybeUser <- runDb (selectFirst [Md.DUserId ==. uid] [])
     return maybeUser
 
 -- | Creates a user in the database.
 createUser :: MonadIO m => User -> AppT m (Entity User)
 createUser p = do
-    increment "createUser"
+    increment "UserRegistered"
     logDebugNS "web" "creating a user"
-    newUserId <- runDb (insert (User (userName p) (userEmail p)))
-    maybeUser <- idUser newUserId
-    case maybeUser of
+    maybeUserId <- runDb (insertUnique (User (userName p) (userEmail p) (userPassword p)))
+    case maybeUserId of
       Nothing ->
         throwError err400
-      Just person ->
-        return person
+      Just uid -> do
+        maybeUser <- userByUid uid
+        case maybeUser of
+          Nothing ->
+            throwError err400
+          Just user ->
+            return user
 
 -- | Return wai metrics as JSON
 waiMetrics :: MonadIO m => AppT m (HashMap Text Int64)
@@ -83,3 +86,9 @@ waiMetrics = do
     logDebugNS "web" "metrics"
     metr <- Metrics.getMetrics
     liftIO $ mapM Counter.read =<< readIORef (metr ^. metricsCounters)
+
+
+-- | Generates JavaScript to query the User API.
+generateJavaScript :: IO ()
+generateJavaScript =
+    writeJSForAPI (Proxy :: Proxy UserAPI) vanillaJS "./assets/api.js"

@@ -13,6 +13,7 @@ import           System.Remote.Monitoring    (forkServer, serverMetricStore,
                                               serverThreadId)
 
 import           Api                         (app)
+import           Api.User                    (generateJavaScript)
 import           Config                      (Config (..), Environment (..),
                                               makePool, setLogger)
 import           Control.Exception           (bracket)
@@ -37,6 +38,7 @@ initialize cfg = do
     waiMetrics <- registerWaiMetrics (configMetrics cfg ^. M.metricsStore)
     let logger = setLogger (configEnv cfg)
     runSqlPool doMigrations (configPool cfg)
+    generateJavaScript
     pure . logger . metrics waiMetrics . app $ cfg
 
 -- | Allocates resources for 'Config'
